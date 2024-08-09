@@ -22,6 +22,7 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
+
 const LoginForm = () => {
     /**
      * declares a form properties that uses zodResolver to handle
@@ -31,7 +32,8 @@ const LoginForm = () => {
         resolver: zodResolver(Schemas.LoginSchema),
         defaultValues: {
             email: "",
-            password:""
+            password:"",
+            code: ""
         }
     })
 
@@ -39,9 +41,9 @@ const LoginForm = () => {
      * built in state transition function to monitor form submit states
      */
     const [isPending, startTransition] = useTransition()
-
     const [error, setError] = useState<string | undefined>("")
     const [success, setSuccess] = useState<string | undefined>("")
+    const [twoFactorEnabled, setTwoFactorEnabled] = useState(false)
 
     const searchParams = useSearchParams();
     const urlError = searchParams.get("error") === "OAuthAccountNotLinked"
@@ -58,8 +60,17 @@ const LoginForm = () => {
         startTransition(() => {
             login(values)
                 .then((data) => {
-                    setError(data.error)
-                    setSuccess(data.success)
+                    if (data?.error) {
+                        form.reset()
+                        setError(data.error)
+                    }
+
+                    if (data?.success) {
+                        form.reset()
+                        setSuccess(data.success)
+                    }
+
+                    if (data?.twoFactorEnabled) setTwoFactorEnabled(true)
                 })
         });
     }
@@ -76,7 +87,7 @@ const LoginForm = () => {
                     onSubmit={form.handleSubmit(onSubmit)}
                     className="space-y-6"
                 >
-                    <div className="space-y-4">
+                    {!twoFactorEnabled && <div className="space-y-4">
                         <FormField
                             control={form.control}
                             name="email"
@@ -122,7 +133,29 @@ const LoginForm = () => {
                         >
                             <Link href="/forgot-password">Forgot Password</Link>
                         </Button>
-                    </div>
+                    </div>}
+                    {twoFactorEnabled &&
+                        <div className="space-y-4">
+                            <FormField
+                                control={form.control}
+                                name="code"
+                                render={({field}) => (
+                                    <FormItem>
+                                        <FormLabel>Two Factor Code</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                            {...field}
+                                            placeholder="123456"
+                                            type="text"
+                                            disabled={isPending}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+                    }
                     <FormError message={error || urlError}/>
                     <FormSucces message={success}/>
                     <Button
@@ -130,7 +163,10 @@ const LoginForm = () => {
                         type="submit"
                         disabled={isPending}
                     >
-                        Login
+                        {
+                            twoFactorEnabled ? "Confirm Code" : "Login"
+                        }
+                        
                     </Button>
                 </form>
             </Form>

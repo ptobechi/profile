@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { optional, z } from "zod";
 
 /**
  * login form validation schema
@@ -9,7 +9,8 @@ const LoginSchema = z.object({
     }),
     password: z.string().min(1, {
         message: "Password is required"
-    })
+    }),
+    code: optional(z.string())
 })
 
 /**

@@ -1,18 +1,12 @@
-import NextAuth, {type DefaultSession} from "next-auth"
+import NextAuth from "next-auth"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import authConfig from "@/auth.config"
 import { db } from "@/lib/db"
 import { getUserByID } from "@/data/user"
 import { UserRole } from "@prisma/client"
+import { getTwoFactorConfirmationByUserId } from "./data/verification-token"
 
-type ExtendedUser = DefaultSession["user"] & {
-  role: UserRole,
-}
-declare module "next-auth" {
-  interface Session {
-    user: ExtendedUser
-  }
-}
+
 
 export const {
   auth,
@@ -39,12 +33,26 @@ export const {
 
       if (!user.id) return false
 
-      // Generate Token
       const existingUser = await getUserByID(user.id)
 
-      if (!existingUser?.emailVerified) return false
+      if (!existingUser) return false
+
+      // prevent login without email verification
+      if (!existingUser.emailVerified) return false
 
       // TODO: Add 2FA authentication
+      if (existingUser.isTwoFactorEnabled) {
+        const _2fa =  await getTwoFactorConfirmationByUserId(existingUser.id)
+
+        if (!_2fa) return false
+
+        // Delete 2fa for next login
+        await db.twoFactorConfirmation.delete({
+          where:{
+            id: _2fa.id
+          }
+        })
+      }
       return true
     },
     async jwt({token}) {
